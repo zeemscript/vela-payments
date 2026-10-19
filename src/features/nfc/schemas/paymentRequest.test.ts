@@ -21,6 +21,11 @@ describe('paymentRequest schema', () => {
     expect(parsePaymentRequest(basePayload)).toEqual(basePayload);
   });
 
+  it('accepts a valid XLM payment request', () => {
+    const request = { ...basePayload, asset: 'XLM', amount: '1000' };
+    expect(parsePaymentRequest(request)).toEqual(request);
+  });
+
   it('rejects invalid Stellar public keys', () => {
     expect(() => parsePaymentRequest({ ...basePayload, recipient: 'INVALID' })).toThrow();
   });
@@ -37,6 +42,17 @@ describe('paymentRequest schema', () => {
     expect(() =>
       parsePaymentRequest({ ...basePayload, expiresAt: basePayload.timestamp })
     ).toThrow();
+  });
+
+  it('preserves supported optional contract fields and rejects unknown ones', () => {
+    const optional = {
+      ...basePayload,
+      memo: 'Coffee',
+      requestId: 'req_123',
+      metadata: { table: 7 },
+    };
+    expect(parsePaymentRequest(optional)).toEqual(optional);
+    expect(() => parsePaymentRequest({ ...basePayload, surprise: true })).toThrow();
   });
 
   it('validateExpiry returns false for past requests', () => {

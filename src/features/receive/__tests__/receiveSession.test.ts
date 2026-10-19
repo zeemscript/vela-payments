@@ -35,6 +35,20 @@ describe('ReceiveSessionManager', () => {
     expect(onExpire).not.toHaveBeenCalled();
   });
 
+  it('allows two independent timers to be cancelled separately', () => {
+    const onExpire = jest.fn();
+    const onTimeout = jest.fn();
+
+    const cancelExpiry = manager.startRequestExpiry(1, onExpire);
+    manager.startWaitTimeout(1_000, onTimeout);
+    cancelExpiry();
+
+    jest.advanceTimersByTime(1_000);
+
+    expect(onExpire).not.toHaveBeenCalled();
+    expect(onTimeout).toHaveBeenCalledTimes(1);
+  });
+
   it('cancelAll() stops every active timer', () => {
     const onExpire = jest.fn();
     const onTimeout = jest.fn();
@@ -47,6 +61,16 @@ describe('ReceiveSessionManager', () => {
     jest.advanceTimersByTime(60_000);
     expect(onExpire).not.toHaveBeenCalled();
     expect(onTimeout).not.toHaveBeenCalled();
+  });
+
+  it('clears timers when cancelAll is called with no active timers', () => {
+    expect(() => manager.cancelAll()).not.toThrow();
+
+    const onExpire = jest.fn();
+    manager.startRequestExpiry(1, onExpire);
+    jest.advanceTimersByTime(1_000);
+
+    expect(onExpire).toHaveBeenCalledTimes(1);
   });
 
   it('startWaitTimeout fires onTimeout after the given delay', () => {

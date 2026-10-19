@@ -55,10 +55,10 @@ global.Buffer = Buffer;
 
 describe('authErrors', () => {
   describe('createAuthError', () => {
-    it('creates an error with the correct code and Spanish message', () => {
+    it('creates an error with the correct code and English message', () => {
       const err = createAuthError(AuthErrorCode.USER_CANCELLED);
       expect(err.code).toBe('USER_CANCELLED');
-      expect(err.message).toMatch(/cancelad/i);
+      expect(err.message).toMatch(/cancelled/i);
     });
 
     it('attaches cause when provided', () => {
@@ -74,6 +74,16 @@ describe('authErrors', () => {
       expect(err.code).toBe(AuthErrorCode.USER_CANCELLED);
     });
 
+    it('maps a native timeout to a safe passkey error', () => {
+      const err = mapNativePasskeyError({
+        error: 'TimeoutError',
+        message: 'native timeout details',
+      });
+
+      expect(err.code).toBe(AuthErrorCode.TIMEOUT);
+      expect(err.message).not.toContain('native timeout details');
+    });
+
     it('maps NoCredentials to NO_CREDENTIAL', () => {
       const err = mapNativePasskeyError({ error: 'NoCredentials', message: 'no creds' });
       expect(err.code).toBe(AuthErrorCode.NO_CREDENTIAL);
@@ -82,6 +92,13 @@ describe('authErrors', () => {
     it('maps unknown errors to UNKNOWN', () => {
       const err = mapNativePasskeyError({ error: 'SomethingNew', message: 'mystery' });
       expect(err.code).toBe(AuthErrorCode.UNKNOWN);
+    });
+
+    it('handles an empty native error message', () => {
+      const err = mapNativePasskeyError({ error: 'SomethingNew', message: '' });
+
+      expect(err.code).toBe(AuthErrorCode.UNKNOWN);
+      expect(err.message).toBeTruthy();
     });
 
     it('handles non-object errors gracefully', () => {
@@ -246,6 +263,24 @@ describe('PasskeyService', () => {
       );
     });
 
+    it('returns a safe error when secure storage fails during registration', async () => {
+      (SecureKeyStore.set as jest.Mock).mockRejectedValueOnce(new Error('secure store locked'));
+
+      const result = await PasskeyService.register({
+        rpId: 'dingpayments.app',
+        rpName: 'Vela',
+        userId: 'user_abc',
+        displayName: 'Test User',
+        challenge: 'dGVzdA==',
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.code).toBe(AuthErrorCode.UNKNOWN);
+        expect(result.error.message).not.toContain('secure store locked');
+      }
+    });
+
     it('returns NOT_SUPPORTED when passkeys unavailable', async () => {
       (Passkey.isSupported as jest.Mock).mockReturnValue(false);
       const result = await PasskeyService.register({
@@ -279,8 +314,8 @@ describe('PasskeyService', () => {
       expect(result.success).toBe(false);
       if (!result.success) {
         expect(result.error.code).toBe(AuthErrorCode.USER_CANCELLED);
-        // Message must be in Spanish
-        expect(result.error.message).toMatch(/cancelad/i);
+        // Message must be in English
+        expect(result.error.message).toMatch(/cancelled/i);
       }
     });
   });
@@ -331,6 +366,24 @@ describe('PasskeyService', () => {
       }
     });
 
+    it('returns a safe error when the native passkey prompt fails', async () => {
+      (Passkey.get as jest.Mock).mockRejectedValueOnce({
+        error: 'RequestFailed',
+        message: 'native prompt internals',
+      });
+
+      const result = await PasskeyService.authenticate({
+        rpId: 'dingpayments.app',
+        challenge: 'dGVzdA==',
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.code).toBe(AuthErrorCode.UNKNOWN);
+        expect(result.error.message).not.toContain('native prompt internals');
+      }
+    });
+
     it('returns NOT_SUPPORTED when passkeys unavailable', async () => {
       (Passkey.isSupported as jest.Mock).mockReturnValue(false);
       const result = await PasskeyService.authenticate({
@@ -351,6 +404,12 @@ describe('PasskeyService', () => {
 
       expect(result.success).toBe(true);
       expect(SecureKeyStore.delete).toHaveBeenCalledTimes(3);
+    });
+
+    it('deletes the stored credential ID after logout', async () => {
+      await PasskeyService.revoke();
+
+      expect(SecureKeyStore.delete).toHaveBeenCalledWith('ding.passkey.credentialId');
     });
 
     it('returns STORE_ERROR if delete fails', async () => {

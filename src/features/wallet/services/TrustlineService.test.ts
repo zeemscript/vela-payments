@@ -43,7 +43,7 @@ jest.mock('@stellar/stellar-sdk', () => {
     Asset: MockAsset,
     BASE_FEE: '100',
     Keypair: {
-      fromSecret: jest.fn().mockReturnValue({ publicKey: () => 'GFAKEPUBLICKEY' }),
+      fromSecret: jest.fn().mockReturnValue({ publicKey: () => 'GPUB' }),
     },
     Operation: {
       changeTrust: jest.fn().mockReturnValue({}),
@@ -121,6 +121,16 @@ describe('ensureUsdcTrustline', () => {
 
     expect(result).toEqual({ status: 'already_trusted' });
     expect(server.submitTransaction).not.toHaveBeenCalled();
+  });
+
+  it('returns a safe error when account lookup fails', async () => {
+    server.loadAccount.mockRejectedValueOnce(new Error('private Horizon details'));
+
+    const result = await ensureUsdcTrustline('GPUB');
+
+    expect(result.status).toBe('error');
+    expect(result.message).toBeTruthy();
+    expect(result.message).not.toContain('private Horizon details');
   });
 
   it('surfaces a user-safe error when the reserve is insufficient, without touching the secret key', async () => {

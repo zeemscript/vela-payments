@@ -11,14 +11,32 @@ describe('receiveAmountSchema', () => {
     expect(result.success).toBe(true);
   });
 
+  it('accepts a USDC amount with one decimal place', () => {
+    expect(receiveAmountSchema.safeParse({ amount: '25.5', asset: 'USDC' }).success).toBe(true);
+  });
+
   it('rejects USDC amounts with 3 decimal places', () => {
     const result = receiveAmountSchema.safeParse({ amount: '25.123', asset: 'USDC' });
     expect(result.success).toBe(false);
   });
 
+  it('rejects a USDC amount with a trailing decimal point', () => {
+    expect(receiveAmountSchema.safeParse({ amount: '1.', asset: 'USDC' }).success).toBe(false);
+  });
+
+  it('rejects a USDC amount with a leading decimal point', () => {
+    expect(receiveAmountSchema.safeParse({ amount: '.5', asset: 'USDC' }).success).toBe(false);
+  });
+
   it('accepts XLM amounts with up to 7 decimal places (not capped at 2)', () => {
     const result = receiveAmountSchema.safeParse({ amount: '1.1234567', asset: 'XLM' });
     expect(result.success).toBe(true);
+  });
+
+  it('rejects XLM with one digit beyond maximum precision', () => {
+    const result = receiveAmountSchema.safeParse({ amount: '1.12345678', asset: 'XLM' });
+
+    expect(result.success).toBe(false);
   });
 
   it('rejects a zero amount', () => {
@@ -44,6 +62,10 @@ describe('receiveAmountSchema', () => {
   it('rejects a non-numeric string', () => {
     const result = receiveAmountSchema.safeParse({ amount: 'abc', asset: 'XLM' });
     expect(result.success).toBe(false);
+  });
+
+  it('rejects an amount containing whitespace', () => {
+    expect(receiveAmountSchema.safeParse({ amount: '1 0', asset: 'XLM' }).success).toBe(false);
   });
 
   it('rejects an unsupported asset', () => {

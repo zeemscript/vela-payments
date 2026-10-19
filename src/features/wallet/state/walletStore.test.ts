@@ -30,11 +30,25 @@ describe('walletStore', () => {
     expect(useWalletStore.getState().balances).toEqual(balances);
   });
 
+  it('stores an empty wallet balance state', () => {
+    const balances = { xlm: '0', usdc: null, hasUsdcTrustline: false };
+    useWalletStore.getState().setBalances(balances);
+
+    expect(useWalletStore.getState().balances).toEqual(balances);
+  });
+
   it('setError stores and clears the error message', () => {
     useWalletStore.getState().setError('boom');
     expect(useWalletStore.getState().error).toBe('boom');
 
     useWalletStore.getState().setError(null);
+    expect(useWalletStore.getState().error).toBeNull();
+  });
+
+  it('sets an empty error value to clear the current error', () => {
+    useWalletStore.getState().setError('previous error');
+    useWalletStore.getState().setError('');
+
     expect(useWalletStore.getState().error).toBeNull();
   });
 
